@@ -1,54 +1,31 @@
 import streamlit as st
+from search_google import google_search
+from score_post import score_post
 import pandas as pd
 
-# --- モック投稿データ ---
-mock_posts = [
-    {
-        "username": "@beauty_salon_omiya",
-        "date": "2025-07-01",
-        "text": "【新店舗OPEN】7月7日から新しくオープンします！ご予約受付中🌿"
-    },
-    {
-        "username": "@hairplace_kawaguchi",
-        "date": "2025-06-28",
-        "text": "リニューアル完了しました！今まで以上の空間でお迎えします✨"
-    },
-    {
-        "username": "@salon_diary",
-        "date": "2025-07-01",
-        "text": "週末のご予約、まだ少し空きがあります♪当日予約もOK！"
-    }
-]
+# 🔑 APIキー入力（安全に保管するならStreamlit Secretsが理想）
+serpapi_key = c7cee1fdb1e4924a31958879d1f6d0971e4c157c4431d69dc275b06891535c7f
+openai_key = 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
 
-# --- 投稿スコアリングロジック ---
-def mock_score_post(text):
-    if "オープン" in text or "OPEN" in text:
-        return 90
-    elif "リニューアル" in text:
-        return 75
-    else:
-        return 30
+st.title("🔍 探客くん - 新規出店スカウター")
 
-# --- Streamlit UI ---
-st.title("🧭 探客くん - 新店発見ツール（プロトタイプ）")
+query = st.text_input("検索ワードを入力（例：美容室 大宮 open）")
 
-# 入力欄
-st.subheader("🔍 キーワードを入力してください（例：美容室 大宮 open）")
-keywords = st.text_input("キーワード（半角スペース区切り）", "")
-
-# 検索ボタン
 if st.button("検索する"):
-    # 結果生成
-    results = []
-    for post in mock_posts:
-        score = mock_score_post(post["text"])
-        results.append({
-            "ユーザー名": post["username"],
-            "投稿日": post["date"],
-            "投稿内容": post["text"],
-            "新店らしさスコア": f"{score} %"
-        })
-    
-    df = pd.DataFrame(results)
-    st.success("検索が完了しました！")
+    with st.spinner("Google検索中..."):
+        raw_results = google_search(query, serpapi_key)
+
+    scored_results = []
+    with st.spinner("GPTでスコア判定中..."):
+        for r in raw_results:
+            score = score_post(r["snippet"], openai_key)
+            scored_results.append({
+                "タイトル": r["title"],
+                "抜粋": r["snippet"],
+                "URL": r["link"],
+                "新店らしさスコア": score
+            })
+
+    df = pd.DataFrame(scored_results).sort_values(by="新店らしさスコア", ascending=False)
+    st.success("結果を表示します！")
     st.dataframe(df, use_container_width=True)
